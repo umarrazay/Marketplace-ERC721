@@ -18,7 +18,7 @@ contract Marketplace is ERC721Holder{
     Counters.Counter private listingId;
 
     // constuctor-----------------------------------------------------------------------------
-    constructor(uint256 _serviceFee , address _nftContract){
+    constructor(uint256 _serviceFee, address _nftContract){
         serviceFee = _serviceFee;
         nftContract = _nftContract;
         marketPlaceOwner = payable(msg.sender);
@@ -58,82 +58,75 @@ contract Marketplace is ERC721Holder{
         _;
     }
     // events---------------------------------------------------------------------------------
-    event fixpriceListed(uint256 indexed tokenid , uint256 price , address indexed seller);
-    event unlistingAuctions(uint256 indexed tokenid , address seller , uint256 indexed unlistedAt);
-    event unlistingFixedprice(uint256 indexed tokenid , address seller , uint256 indexed unlistedAt);
-    event auctionListed(uint256 indexed tokenid , uint256 reservePrice , address indexed seller , uint256 listedOn);
-    event currentBid(uint256 indexed bidValue , address indexed bidder , uint256 indexed previousBid , address previousBidder);
-    event nftClaim(uint256 indexed tokenid , address indexed claimer , uint256 indexed claimAt , uint256 sericefee , uint256 paymenttoselelr);
-    event buyFixpriceNft(uint256 indexed tokenid , uint256 indexed totalPricePaid , address indexed buyer , uint256 priceForSeller , uint256 servicefee);
-    event auctionEnded(uint256 indexed tokenid , uint256 indexed winingBid , address indexed bidWinner , uint256 endedAt , uint256 servicefee , uint256 paymentToSeller);
-        
+
+    event nftClaim(uint256 indexed tokenid,  address indexed claimer);
+    event bidPlaced(uint256 indexed bidValue, address indexed bidder);
+
+    event auctionsListed(uint256 indexed tokenid, address indexed seller, uint256 indexed resPrice);
+    event fixpriceListed(uint256 indexed tokenid, address indexed seller, uint256 indexed nftprice);
+    event unlistAuctions(uint256 indexed tokenid, address indexed seller, uint256 indexed unlistedAt);
+    event unlistFixprice(uint256 indexed tokenid, address indexed seller, uint256 indexed unlistedAt);
+    event endAuctionTime(uint256 indexed tokenid, address indexed Winner, uint256 indexed winingBidValue);
+    event buyFixpriceNft(uint256 indexed tokenid, address indexed buyer,  uint256 indexed totalPricePaid);
     // functions------------------------------------------------------------------------------
 
     // admin functions------------------------------------------------------------------------
 
     // calculation functions------------------------------------------------------------------
 
-    function calculateServiceFee(uint256 _nftprice , uint256 _pbp) private pure returns(uint256){
+    function calculateServiceFee(uint256 _nftprice, uint256 _pbp) private pure returns(uint256){
         uint256 servicefees = _nftprice.mul(_pbp).div(10000);
         return servicefees;
     }
     function updateServiceFee(uint256 _newServiceFee) public adminOnly{
-        require(_newServiceFee <= 1000 && _newServiceFee >=100 , "Can not be greater than 10 % ");
+        require(_newServiceFee <= 1000 && _newServiceFee >= 100,"Can not be greater than 10 % ");
         serviceFee = _newServiceFee;
     }
 
     // user functions-------------------------------------------------------------------------
 
-    function listNftOnFixedprice(uint256 _tokenid , uint256 _price) public {
-        require(_price > 0 , "price can not be zero");
-        require(!fixpriceListings[_tokenid].isListed , "already listed");
+    function listNftOnFixedprice(uint256 _tokenid, uint256 _price) public {
+        require(_price > 0,"price can not be zero");
+        require(!fixpriceListings[_tokenid].isListed,"already listed");
         fixpriceListings[_tokenid] = FixpriceListing({
-            isListed:true,
-            price:_price,
-            seller:msg.sender,
-            tokenid:_tokenid
+            isListed:true, price:_price, seller:msg.sender, tokenid:_tokenid
         });
-        IERC721(nftContract).safeTransferFrom(msg.sender , address(this) , _tokenid);
-        emit fixpriceListed(_tokenid, _price, msg.sender);
+        IERC721(nftContract).safeTransferFrom(msg.sender, address(this), _tokenid);
+        emit fixpriceListed(_tokenid,  msg.sender, _price);
     }
 
-    function listNftOnAuction(uint256 _tokenid , uint256 _reservePrice , uint256 _endTime) public{
-        require(_reservePrice > 0 , "price can not be zero");
-        require(!auctionListings[_tokenid].isListed , "already listed");
-        require(_endTime >= block.timestamp.add(5 minutes) , "auction period at least for 10 minutes");
+    function listNftOnAuction(uint256 _tokenid, uint256 _reservePrice, uint256 _endTime) public{
+        require(_reservePrice > 0,"price can not be zero");
+        require(!auctionListings[_tokenid].isListed, "already listed");
+        require(_endTime >= block.timestamp.add(5 minutes),"auction period at least for 10 minutes");
 
         auctionListings[_tokenid] = AuctionListing({
-            isSold:false,
-            isListed:true,
-            seller:msg.sender,
-            tokenid:_tokenid,
-            endTime:_endTime,
-            reservePrice:_reservePrice
+            isSold:false, isListed:true, seller:msg.sender, tokenid:_tokenid, endTime:_endTime, reservePrice:_reservePrice
         });
 
-        IERC721(nftContract).safeTransferFrom(msg.sender , address(this) , _tokenid);
-        emit auctionListed(_tokenid, _reservePrice, msg.sender , block.timestamp);
+        IERC721(nftContract).safeTransferFrom(msg.sender, address(this), _tokenid);
+        emit auctionsListed(_tokenid, msg.sender, _reservePrice);
     }
 
     function buyFixedpriceNft(uint256 _tokenid) public payable {
-        require(msg.sender != fixpriceListings[_tokenid].seller , "can not buy your own item");
-        require(msg.value == fixpriceListings[_tokenid].price , "pay exact price");
+        require(msg.sender != fixpriceListings[_tokenid].seller,"can not buy your own item");
+        require(msg.value == fixpriceListings[_tokenid].price,"pay exact price");
 
         uint256 servicefee = calculateServiceFee(msg.value, serviceFee);
         marketPlaceOwner.transfer(servicefee);
         uint256 paymentToSeller = msg.value.sub(servicefee);
         payable(fixpriceListings[_tokenid].seller).transfer(paymentToSeller);
 
-        IERC721(nftContract).safeTransferFrom(address(this) , msg.sender , _tokenid);
-        emit buyFixpriceNft(_tokenid , msg.value , msg.sender , paymentToSeller ,servicefee);
+        IERC721(nftContract).safeTransferFrom(address(this), msg.sender, _tokenid);
+        emit buyFixpriceNft(_tokenid, msg.sender, msg.value);
         delete fixpriceListings[_tokenid];
     }
 
     function bidOnAuction(uint256 _tokenid) public payable{
-        require(msg.sender != auctionListings[_tokenid].seller ,"seller can not bid");
-        require(msg.value >= auctionListings[_tokenid].reservePrice , "bid can not be less then reserve price");
-        require(msg.value > bidinformation[_tokenid].currentBidValue , "place high bid then existing");
-        
+        require(msg.sender != auctionListings[_tokenid].seller,"seller can not bid");
+        require(msg.value >= auctionListings[_tokenid].reservePrice,"bid can not be less then reserve price");
+        require(msg.value > bidinformation[_tokenid].currentBidValue,"place high bid then existing");
+
         uint256 currentBidVal = bidinformation[_tokenid].currentBidValue;
         address currentBidder = bidinformation[_tokenid].currentBidder;
 
@@ -143,12 +136,11 @@ contract Marketplace is ERC721Holder{
         bidinformation[_tokenid].currentBidder = msg.sender;
         bidinformation[_tokenid].currentBidValue = msg.value;
 
-        emit currentBid(msg.value , msg.sender , currentBidVal , currentBidder);
+        emit bidPlaced(msg.value, msg.sender);
     }
 
-
-    function endAuction(uint256 _tokenid)  public {
-        require(msg.sender == auctionListings[_tokenid].seller , "you are not the seller");
+    function endAuction(uint256 _tokenid) public {
+        require(msg.sender == auctionListings[_tokenid].seller,"you are not the seller");
 
         uint256 _bidVal = bidinformation[_tokenid].currentBidValue;
         address _bidWinner = bidinformation[_tokenid].currentBidder;
@@ -158,19 +150,19 @@ contract Marketplace is ERC721Holder{
         uint256 paymentToSeller = _bidVal.sub(_servicefee);
         payable(auctionListings[_tokenid].seller).transfer(paymentToSeller);
 
-        IERC721(nftContract).safeTransferFrom(address(this),_bidWinner,_tokenid);
+        IERC721(nftContract).safeTransferFrom(address(this), _bidWinner, _tokenid);
 
-        emit auctionEnded(_tokenid , _bidVal , _bidWinner , block.timestamp , _servicefee , paymentToSeller);
-        
+        emit endAuctionTime(_tokenid, _bidWinner, _bidVal);
+
         delete auctionListings[_tokenid];
         delete bidinformation[_tokenid];
 
     }
 
     function claimNft(uint256 _tokenid)  public {
-        require(msg.sender == bidinformation[_tokenid].currentBidder , "you are not the highest bidder");
-        require(block.timestamp >= auctionListings[_tokenid].endTime , "auction time not completed");
-        
+        require(msg.sender == bidinformation[_tokenid].currentBidder,"you are not the highest bidder");
+        require(block.timestamp >= auctionListings[_tokenid].endTime,"auction time not completed");
+
         uint256 _bidVal = bidinformation[_tokenid].currentBidValue;
         address _bidWinner = bidinformation[_tokenid].currentBidder;
 
@@ -180,25 +172,25 @@ contract Marketplace is ERC721Holder{
         payable(auctionListings[_tokenid].seller).transfer(paymentToSeller);
 
         IERC721(nftContract).safeTransferFrom(address(this),_bidWinner,_tokenid);
-   
-        emit nftClaim(_tokenid , msg.sender , block.timestamp , _servicefee , paymentToSeller);
-        
+
+        emit nftClaim(_tokenid, msg.sender);
+
         delete auctionListings[_tokenid];
         delete bidinformation[_tokenid];
     }
 
     function removeListingFixedprice(uint256 _tokenid) public{
-        require(msg.sender == fixpriceListings[_tokenid].seller , "you are not the seller");
-        IERC721(nftContract).safeTransferFrom(address(this),msg.sender,_tokenid);
+        require(msg.sender == fixpriceListings[_tokenid].seller,"you are not the seller");
+        IERC721(nftContract).safeTransferFrom(address(this), msg.sender, _tokenid);
         delete fixpriceListings[_tokenid];
-        emit unlistingFixedprice(_tokenid , msg.sender , block.timestamp);
+        emit unlistFixprice(_tokenid, msg.sender, block.timestamp);
     }
 
     function removeListingAuction(uint256 _tokenid) public {
-        require(msg.sender == auctionListings[_tokenid].seller , "you are not the seller");
-        require(!bidinformation[_tokenid].isBiPplaced , "bid is placed , can not remove from listing");
-        IERC721(nftContract).safeTransferFrom(address(this),msg.sender,_tokenid);
+        require(msg.sender == auctionListings[_tokenid].seller,"you are not the seller");
+        require(!bidinformation[_tokenid].isBiPplaced,"bid is placed , can not remove from listing");
+        IERC721(nftContract).safeTransferFrom(address(this), msg.sender, _tokenid);
         delete auctionListings[_tokenid];
-        emit unlistingFixedprice(_tokenid , msg.sender , block.timestamp);
+        emit unlistAuctions(_tokenid, msg.sender, block.timestamp);
     }
 }
