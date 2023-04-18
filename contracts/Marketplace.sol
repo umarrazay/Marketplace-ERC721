@@ -1,37 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "hardhat/console.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
 contract Marketplace is ERC721Holder{
 
     using SafeMath for uint256;
-    using Counters for Counters.Counter;
 
-    // state variables------------------------------------------------------------------------
     uint256 public serviceFee;
     address public nftContract;
     address payable public marketPlaceOwner;
-    Counters.Counter private listingId;
 
-    // constuctor-----------------------------------------------------------------------------
     constructor(uint256 _serviceFee, address _nftContract){
         serviceFee = _serviceFee;
         nftContract = _nftContract;
         marketPlaceOwner = payable(msg.sender);
     }
 
-    // structs--------------------------------------------------------------------------------
     struct FixpriceListing{
         bool isListed;
         uint256 price;
         address seller;
         uint256 tokenid;
     }
-
     struct AuctionListing{
         bool isSold;
         bool isListed;
@@ -40,24 +33,20 @@ contract Marketplace is ERC721Holder{
         uint256 endTime;
         uint256 reservePrice;
     }
-
     struct bidding{
         bool isBiPplaced;
         uint256 currentBidValue;
         address currentBidder;
     }
 
-    // mappings-------------------------------------------------------------------------------
     mapping(uint256=> bidding) public bidinformation;
     mapping(uint256 => AuctionListing) public auctionListings;
     mapping(uint256 => FixpriceListing) public fixpriceListings;
 
-    // modifires------------------------------------------------------------------------------
     modifier adminOnly(){
         require(msg.sender == marketPlaceOwner,"unautherized caller");
         _;
     }
-    // events---------------------------------------------------------------------------------
 
     event nftClaim(uint256 indexed tokenid,  address indexed claimer);
     event bidPlaced(uint256 indexed bidValue, address indexed bidder);
@@ -68,11 +57,9 @@ contract Marketplace is ERC721Holder{
     event unlistFixprice(uint256 indexed tokenid, address indexed seller, uint256 indexed unlistedAt);
     event endAuctionTime(uint256 indexed tokenid, address indexed Winner, uint256 indexed winingBidValue);
     event buyFixpriceNft(uint256 indexed tokenid, address indexed buyer,  uint256 indexed totalPricePaid);
-    // functions------------------------------------------------------------------------------
 
     // admin functions------------------------------------------------------------------------
 
-    // calculation functions------------------------------------------------------------------
 
     function calculateServiceFee(uint256 _nftprice, uint256 _pbp) private pure returns(uint256){
         uint256 servicefees = _nftprice.mul(_pbp).div(10000);
@@ -82,9 +69,7 @@ contract Marketplace is ERC721Holder{
         require(_newServiceFee <= 1000 && _newServiceFee >= 100,"Can not be greater than 10 % ");
         serviceFee = _newServiceFee;
     }
-
-    // user functions-------------------------------------------------------------------------
-
+    
     function listNftOnFixedprice(uint256 _tokenid, uint256 _price) public {
         require(_price > 0,"price can not be zero");
         require(!fixpriceListings[_tokenid].isListed,"already listed");
