@@ -48,9 +48,8 @@ contract Marketplace is ERC721Holder{
         _;
     }
 
-    event nftClaim(uint256 indexed tokenid,  address indexed claimer);
-    event bidPlaced(uint256 indexed bidValue, address indexed bidder);
-
+    event nftClaim(uint256 indexed tokenid, address indexed claimer);
+    event bidPlace(uint256 indexed tokenid, uint256 indexed bidValue, address indexed bidder);
     event auctionsListed(uint256 indexed tokenid, address indexed seller, uint256 indexed resPrice);
     event fixpriceListed(uint256 indexed tokenid, address indexed seller, uint256 indexed nftprice);
     event unlistAuctions(uint256 indexed tokenid, address indexed seller, uint256 indexed unlistedAt);
@@ -58,18 +57,22 @@ contract Marketplace is ERC721Holder{
     event endAuctionTime(uint256 indexed tokenid, address indexed Winner, uint256 indexed winingBidValue);
     event buyFixpriceNft(uint256 indexed tokenid, address indexed buyer,  uint256 indexed totalPricePaid);
 
-    // admin functions------------------------------------------------------------------------
+    // admin can update the servicefee/platform fee with following function
 
+    function updateServiceFee(uint256 _newServiceFee) public adminOnly{
+        require(_newServiceFee <= 1000 && _newServiceFee >= 100,"Can not be greater than 10 % ");
+        serviceFee = _newServiceFee;
+    }
+
+    // this function is calculating the service fee that is charged by the platform
 
     function calculateServiceFee(uint256 _nftprice, uint256 _pbp) private pure returns(uint256){
         uint256 servicefees = _nftprice.mul(_pbp).div(10000);
         return servicefees;
     }
-    function updateServiceFee(uint256 _newServiceFee) public adminOnly{
-        require(_newServiceFee <= 1000 && _newServiceFee >= 100,"Can not be greater than 10 % ");
-        serviceFee = _newServiceFee;
-    }
-    
+
+    // this function will list the nft on fixed price    
+
     function listNftOnFixedprice(uint256 _tokenid, uint256 _price) public {
         require(_price > 0,"price can not be zero");
         require(!fixpriceListings[_tokenid].isListed,"already listed");
@@ -79,6 +82,8 @@ contract Marketplace is ERC721Holder{
         IERC721(nftContract).safeTransferFrom(msg.sender, address(this), _tokenid);
         emit fixpriceListed(_tokenid,  msg.sender, _price);
     }
+
+    // this function will list the nft on timed auction
 
     function listNftOnAuction(uint256 _tokenid, uint256 _reservePrice, uint256 _endTime) public{
         require(_reservePrice > 0,"price can not be zero");
@@ -92,6 +97,8 @@ contract Marketplace is ERC721Holder{
         IERC721(nftContract).safeTransferFrom(msg.sender, address(this), _tokenid);
         emit auctionsListed(_tokenid, msg.sender, _reservePrice);
     }
+
+    // this function will use to buy the nft that is listed on fixed price
 
     function buyFixedpriceNft(uint256 _tokenid) public payable {
         require(msg.sender != fixpriceListings[_tokenid].seller,"can not buy your own item");
@@ -107,6 +114,8 @@ contract Marketplace is ERC721Holder{
         delete fixpriceListings[_tokenid];
     }
 
+    // this function will place the bids on the nfts that are listed on the timed auctions
+
     function bidOnAuction(uint256 _tokenid) public payable{
         require(msg.sender != auctionListings[_tokenid].seller,"seller can not bid");
         require(msg.value >= auctionListings[_tokenid].reservePrice,"bid can not be less then reserve price");
@@ -121,8 +130,10 @@ contract Marketplace is ERC721Holder{
         bidinformation[_tokenid].currentBidder = msg.sender;
         bidinformation[_tokenid].currentBidValue = msg.value;
 
-        emit bidPlaced(msg.value, msg.sender);
+        emit bidPlace(_tokenid , msg.value, msg.sender);
     }
+
+    // seller can end the auction (event before the time runs out) and the NFT will be transfer to the highet bidder at that time
 
     function endAuction(uint256 _tokenid) public {
         require(msg.sender == auctionListings[_tokenid].seller,"you are not the seller");
@@ -144,6 +155,8 @@ contract Marketplace is ERC721Holder{
 
     }
 
+    // user/bidwinner can claim the nft after the time for the auction is completed
+
     function claimNft(uint256 _tokenid)  public {
         require(msg.sender == bidinformation[_tokenid].currentBidder,"you are not the highest bidder");
         require(block.timestamp >= auctionListings[_tokenid].endTime,"auction time not completed");
@@ -163,7 +176,8 @@ contract Marketplace is ERC721Holder{
         delete auctionListings[_tokenid];
         delete bidinformation[_tokenid];
     }
-
+    
+    // user can remove the nft from that that is listed on the fix price
     function removeListingFixedprice(uint256 _tokenid) public{
         require(msg.sender == fixpriceListings[_tokenid].seller,"you are not the seller");
         IERC721(nftContract).safeTransferFrom(address(this), msg.sender, _tokenid);
@@ -171,6 +185,7 @@ contract Marketplace is ERC721Holder{
         emit unlistFixprice(_tokenid, msg.sender, block.timestamp);
     }
 
+    // user can remove the nft that is listed with timed auction , but only if there is no bid placed
     function removeListingAuction(uint256 _tokenid) public {
         require(msg.sender == auctionListings[_tokenid].seller,"you are not the seller");
         require(!bidinformation[_tokenid].isBiPplaced,"bid is placed , can not remove from listing");
@@ -178,4 +193,7 @@ contract Marketplace is ERC721Holder{
         delete auctionListings[_tokenid];
         emit unlistAuctions(_tokenid, msg.sender, block.timestamp);
     }
+
+    // vrf v2 request recieve funding from subscription accounts. the subscriotion manager lets you create an account and pre pay for the vrf v2 , so yoo dont need to pay for the everytime you  make the rewuest.abi
+
 }
